@@ -3,11 +3,6 @@
 # by solenum (exz) - MIT license
 # ##oodnet@libera / oods.net
 # ----------------
-#
-# TODO:
-#   - render animation frames
-#   - add ui for/handle resolution properly
-#   - add ui for/handle lighting/rendering properties
 
 import bpy
 import math
@@ -181,7 +176,7 @@ def register():
     
     bpy.types.Scene.iso_cam_fov = bpy.props.FloatProperty(
         name = "Iso Camera FOV",
-        default = 6.0,
+        default = 7.31429,
         min = 0.01,
         max = 10000.0
     )
