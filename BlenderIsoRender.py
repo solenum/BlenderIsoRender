@@ -21,17 +21,26 @@ class IsoRenderOperator(bpy.types.Operator):
         # set render context
         bpy.context.scene.render.film_transparent = True
         bpy.context.scene.render.image_settings.color_mode = 'RGBA'
+        bpy.context.scene.render.resolution_x = bpy.context.scene.iso_render_x
+        bpy.context.scene.render.resolution_y = bpy.context.scene.iso_render_y
+        bpy.context.scene.render.resolution_percentage = 100
+        bpy.context.scene.render.filter_size = bpy.context.scene.iso_filter_size
+        bpy.context.scene.render.use_border = False
         
         # create the camera
         bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(0, 0, 0), rotation=(1.04587, 0.0128535, 2.02015), scale=(1, 1, 1))
         bpy.context.active_object.name = "isoRenderCamera"
         if bpy.context.scene.iso_ortho_cam:
             bpy.data.objects["isoRenderCamera"].data.type = 'ORTHO'
+            bpy.data.objects["isoRenderCamera"].data.ortho_scale = bpy.context.scene.iso_cam_fov
+        else:
+            bpy.data.objects["isoRenderCamera"].data.type = 'PERSP'
+            bpy.data.objects["isoRenderCamera"].data.lens = bpy.context.scene.iso_cam_fov
         bpy.data.objects["isoRenderCamera"].select_set(True)
         cam = bpy.context.active_object
         
         # base path for rendered images
-        basePath = bpy.context.scene.iso_export_path + "/"
+        basePath = bpy.context.scene.iso_export_path + "/" + bpy.context.scene.iso_export_prefix
         
         # render each angle
         angleJump = 360.0 / bpy.context.scene.iso_render_angles
@@ -52,12 +61,13 @@ class IsoRenderOperator(bpy.types.Operator):
             
             # render to image
             bpy.context.scene.camera = cam
-            bpy.context.scene.render.filepath = basePath + str(i) + ".png" 
-            bpy.ops.render.render(use_viewport=False, write_still=True)
+            bpy.context.scene.render.filepath = basePath + str(i) + "_"
+            bpy.ops.render.render(use_viewport=False, animation=True, write_still=True)
         
         # delete lingering camera
-        bpy.data.objects["isoRenderCamera"].select_set(True)
-        bpy.ops.object.delete()
+        if bpy.context.scene.iso_delete_cam:
+            bpy.data.objects["isoRenderCamera"].select_set(True)
+            bpy.ops.object.delete()
         
         self.report({'INFO'}, "Done!")
         return {'FINISHED'}
@@ -78,7 +88,10 @@ class IsoSpriteRender(bpy.types.Panel):
         
         # export path
         row = layout.row()
-        row.prop(scene, "iso_export_path")
+        row.prop(scene, "iso_export_path", text="Export Path")
+        
+        row = layout.row()
+        row.prop(scene, "iso_export_prefix", text="Filename Prefix")
         
         row = layout.row()
         row.prop(scene, "iso_render_angles", text="Num Angles")
@@ -89,7 +102,16 @@ class IsoSpriteRender(bpy.types.Panel):
         row.prop(scene, "iso_orbit_radius", text="Orbit Radius")
         
         row = layout.row()
+        row.prop(scene, "iso_render_x", text="Render Width")
+        row.prop(scene, "iso_render_y", text="Render Height")
+        
+        row = layout.row()
+        row.prop(scene, "iso_filter_size", text="Filter Size")
+        row.prop(scene, "iso_cam_fov", text="Camera Focal Length")
+        
+        row = layout.row()
         row.prop(scene, "iso_ortho_cam", text="Use Orthographic Camera")
+        row.prop(scene, "iso_delete_cam", text="Cleanup camera")
         
         # render button
         layout.label(text="Render")
@@ -104,6 +126,12 @@ def register():
         default = bpy.utils.resource_path('USER')
     )
     
+    bpy.types.Scene.iso_export_prefix = bpy.props.StringProperty(
+        name = "Iso Export Prefix",
+        subtype =  'FILE_NAME',
+        default = "sprite"
+    )
+    
     bpy.types.Scene.iso_render_angles = bpy.props.IntProperty(
         name = "Iso Render Angles",
         default = 8
@@ -116,17 +144,46 @@ def register():
     
     bpy.types.Scene.iso_camera_height = bpy.props.IntProperty(
         name = "Iso Camera Height",
-        default = 8
+        default = 45
     )
     
     bpy.types.Scene.iso_orbit_radius = bpy.props.IntProperty(
         name = "Iso Orbit Radius",
-        default = 16
+        default = 70
     )
     
     bpy.types.Scene.iso_ortho_cam = bpy.props.BoolProperty(
         name = "Iso Ortho Camera",
-        default = False
+        default = True
+    )
+    
+    bpy.types.Scene.iso_delete_cam = bpy.props.BoolProperty(
+        name = "Iso Delete Camera",
+        default = True
+    )
+    
+    bpy.types.Scene.iso_render_x = bpy.props.IntProperty(
+        name = "Iso Resolution X",
+        default = 512
+    )
+    
+    bpy.types.Scene.iso_render_y = bpy.props.IntProperty(
+        name = "Iso Resolution Y",
+        default = 512
+    )
+    
+    bpy.types.Scene.iso_filter_size = bpy.props.FloatProperty(
+        name = "Iso Filter Size",
+        default = 1.5,
+        min = 0.01,
+        max = 100.0
+    )
+    
+    bpy.types.Scene.iso_cam_fov = bpy.props.FloatProperty(
+        name = "Iso Camera FOV",
+        default = 6.0,
+        min = 0.01,
+        max = 10000.0
     )
     
     bpy.utils.register_class(IsoRenderOperator)
@@ -135,11 +192,17 @@ def register():
 
 def unregister():
     del bpy.types.Scene.iso_export_path
+    del bpy.types.Scene.iso_export_prefix
     del bpy.types.Scene.iso_render_angles
     del bpy.types.Scene.iso_angle_offset
     del bpy.types.Scene.iso_camera_height
     del bpy.types.Scene.iso_orbit_radius
     del bpy.types.Scene.iso_ortho_cam
+    del bpy.types.Scene.iso_delete_cam
+    del bpy.types.Scene.iso_render_x
+    del bpy.types.Scene.iso_render_y
+    del bpy.types.Scene.iso_filter_size
+    del bpy.types.Scene.iso_cam_fov
     bpy.utils.unregister_class(IsoRenderOperator)
     bpy.utils.unregister_class(IsoSpriteRender)
 
