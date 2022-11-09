@@ -13,6 +13,21 @@ class IsoRenderOperator(bpy.types.Operator):
     bl_idname = "object.iso_render_operator"
     
     def execute(self, context):
+        # store reference to selected object
+        obj = bpy.context.active_object
+        
+        if not obj:
+            self.report({'INFO'}, "No selected armature or object!")
+            return {'FINISHED'}
+        
+        if not bpy.context.scene.iso_render_static:
+            if not obj.animation_data or not obj.animation_data.nla_tracks or len(obj.animation_data.nla_tracks) == 0:
+                self.report({'INFO'}, "Selected armature contains no actions!")
+                return {'FINISHED'}
+        
+        # list of animations to export
+        exportAnims = bpy.context.scene.iso_action_names.split(',')     
+        
         # set render context
         bpy.context.scene.render.film_transparent = True
         bpy.context.scene.render.image_settings.color_mode = 'RGBA'
@@ -54,10 +69,26 @@ class IsoRenderOperator(bpy.types.Operator):
             loc = mathutils.Matrix.Translation(cam.location)
             cam.matrix_world =  loc @ rot
             
-            # render to image
-            bpy.context.scene.camera = cam
-            bpy.context.scene.render.filepath = basePath + str(i) + "_"
-            bpy.ops.render.render(use_viewport=False, animation=True, write_still=True)
+            # render as-is if requested
+            if bpy.context.scene.iso_render_static:
+                # render to image
+                bpy.context.scene.camera = cam
+                bpy.context.scene.render.filepath = basePath + str(i) + "_"
+                bpy.ops.render.render(use_viewport=False, animation=False, write_still=True)
+                continue
+
+            # render each animation once per angle
+            for t in obj.animation_data.nla_tracks:
+                for s in t.strips:
+                    if s.action.name in exportAnims:
+                        obj.animation_data.action = s.action
+                        for frame in range(bpy.context.scene.frame_end):
+                            bpy.context.scene.frame_set(frame)
+                
+                            # render to image
+                            bpy.context.scene.camera = cam
+                            bpy.context.scene.render.filepath = basePath + s.action.name + "_" + str(i) + "f" + str(frame) + "_"
+                            bpy.ops.render.render(use_viewport=False, animation=False, write_still=True)
         
         # delete lingering camera
         if bpy.context.scene.iso_delete_cam:
@@ -88,6 +119,10 @@ class IsoSpriteRender(bpy.types.Panel):
         row = layout.row()
         row.prop(scene, "iso_export_prefix", text="Filename Prefix")
         
+        layout.label(text="Comma-separated list of actions to render:")
+        row = layout.row()
+        row.prop(scene, "iso_action_names", text="Animations")
+        
         row = layout.row()
         row.prop(scene, "iso_render_angles", text="Num Angles")
         row.prop(scene, "iso_angle_offset", text="Angle Offset")
@@ -107,6 +142,7 @@ class IsoSpriteRender(bpy.types.Panel):
         row = layout.row()
         row.prop(scene, "iso_ortho_cam", text="Use Orthographic Camera")
         row.prop(scene, "iso_delete_cam", text="Cleanup camera")
+        row.prop(scene, "iso_render_static", text="Disable Animation")
         
         # render button
         layout.label(text="Render")
@@ -125,6 +161,12 @@ def register():
         name = "Iso Export Prefix",
         subtype =  'FILE_NAME',
         default = "sprite"
+    )
+    
+    bpy.types.Scene.iso_action_names = bpy.props.StringProperty(
+        name = "Iso Action Names",
+        subtype = 'NONE',
+        default = ""
     )
     
     bpy.types.Scene.iso_render_angles = bpy.props.IntProperty(
@@ -155,6 +197,11 @@ def register():
     bpy.types.Scene.iso_delete_cam = bpy.props.BoolProperty(
         name = "Iso Delete Camera",
         default = True
+    )
+    
+    bpy.types.Scene.iso_render_static = bpy.props.BoolProperty(
+        name = "Iso Render Static",
+        default = False
     )
     
     bpy.types.Scene.iso_render_x = bpy.props.IntProperty(
@@ -188,12 +235,14 @@ def register():
 def unregister():
     del bpy.types.Scene.iso_export_path
     del bpy.types.Scene.iso_export_prefix
+    del bpy.types.Scene.iso_action_names
     del bpy.types.Scene.iso_render_angles
     del bpy.types.Scene.iso_angle_offset
     del bpy.types.Scene.iso_camera_height
     del bpy.types.Scene.iso_orbit_radius
     del bpy.types.Scene.iso_ortho_cam
     del bpy.types.Scene.iso_delete_cam
+    del bpy.types.Scene.iso_render_static
     del bpy.types.Scene.iso_render_x
     del bpy.types.Scene.iso_render_y
     del bpy.types.Scene.iso_filter_size

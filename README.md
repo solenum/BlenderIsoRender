@@ -8,6 +8,8 @@ Currently very primitive, you can set some basic camera properties, pick how man
 - [ ] Better camera control (currently built with ortho projection in mind, no control over perspective fov only focal length)
 - [ ] More rendering options (easy toggle 'shadeless' mode?)
 - [ ] Calculate focal length given input of blender unit -> pixel height ratio
+- [ ] Create sprite sheet/atlas instead of just individual images
+- [ ] Tightly pack atlas with metadata file (?)
 
 
 ![An image of the GUI for this tool](https://i.imgur.com/x10hCQB.png)
