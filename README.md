@@ -12,4 +12,5 @@ Currently very primitive, you can set some basic camera properties, pick how man
 - [ ] Tightly pack atlas with metadata file (?)
 
 
-![An image of the GUI for this tool](https://i.imgur.com/x10hCQB.png)
+![An image of the GUI for this tool](https://i.imgur.com/TnCsV2x.png)
+![An image of the individual sprites rendered with this tool](https://i.imgur.com/0hncIAw.png)
