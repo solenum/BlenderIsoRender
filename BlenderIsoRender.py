@@ -82,6 +82,27 @@ class IsoRenderOperator(bpy.types.Operator):
                 for s in t.strips:
                     if s.action.name in exportAnims:
                         obj.animation_data.action = s.action
+                        
+                        # render only keyframes
+                        f = 0
+                        if bpy.context.scene.iso_render_keyframes == True:
+                            bpy.ops.object.select_all(action='DESELECT')
+                            obj.select_set(True)
+                            bpy.context.view_layer.objects.active = obj
+                            bpy.context.scene.frame_set(0)
+                            bpy.ops.screen.frame_jump(end=False)
+                            while bpy.ops.screen.keyframe_jump(next=False if f == 0 else True) != {"CANCELLED"}:
+                                # render to image
+                                print("Yeetus")
+                                bpy.context.scene.camera = cam
+                                bpy.context.scene.render.filepath = basePath + s.action.name + "_" + str(i) + "f" + str(f) + "_"
+                                bpy.ops.render.render(use_viewport=False, animation=False, write_still=True)
+                                f = f + 1
+                            obj.select_set(False)
+                            bpy.context.view_layer.objects.active = cam
+                            continue
+                            
+                        # render all frames
                         for frame in range(bpy.context.scene.frame_end):
                             bpy.context.scene.frame_set(frame)
                 
@@ -93,7 +114,13 @@ class IsoRenderOperator(bpy.types.Operator):
         # delete lingering camera
         if bpy.context.scene.iso_delete_cam:
             bpy.data.objects["isoRenderCamera"].select_set(True)
+            bpy.context.view_layer.objects.active = cam
             bpy.ops.object.delete()
+            
+        # reselect original object
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
         
         self.report({'INFO'}, "Done!")
         return {'FINISHED'}
@@ -142,7 +169,10 @@ class IsoSpriteRender(bpy.types.Panel):
         row = layout.row()
         row.prop(scene, "iso_ortho_cam", text="Use Orthographic Camera")
         row.prop(scene, "iso_delete_cam", text="Cleanup camera")
+        
+        row = layout.row()
         row.prop(scene, "iso_render_static", text="Disable Animation")
+        row.prop(scene, "iso_render_keyframes", text="Only render keyframes")
         
         # render button
         layout.label(text="Render")
@@ -204,6 +234,11 @@ def register():
         default = False
     )
     
+    bpy.types.Scene.iso_render_keyframes = bpy.props.BoolProperty(
+        name = "Iso Render Keyframes",
+        default = False
+    )
+    
     bpy.types.Scene.iso_render_x = bpy.props.IntProperty(
         name = "Iso Resolution X",
         default = 512
@@ -243,6 +278,7 @@ def unregister():
     del bpy.types.Scene.iso_ortho_cam
     del bpy.types.Scene.iso_delete_cam
     del bpy.types.Scene.iso_render_static
+    del bpy.types.Scene.iso_render_keyframe
     del bpy.types.Scene.iso_render_x
     del bpy.types.Scene.iso_render_y
     del bpy.types.Scene.iso_filter_size
